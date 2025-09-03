@@ -5,7 +5,7 @@ pipeline {
         stage('Checkout from GitHub') {
             steps {
                 git branch: 'main',
-                    url: 'https://github.com/devindramg/SFDXProjectPrivateRepoTest.git',
+                    url: 'https://github.com/devindramg/SFDXProjectRepoSonarTestingTest.git',
                     credentialsId: 'my-github-token'
             }
         }
