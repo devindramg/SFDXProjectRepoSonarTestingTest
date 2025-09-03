@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    tools {
+        sonar 'SonarScanner'   // Use the SonarScanner tool configured in Jenkins
+    }
+
     stages {
         stage('Checkout from GitHub') {
             steps {
@@ -33,11 +37,10 @@ pipeline {
             steps {
                 withSonarQubeEnv('MySonarQubeServer') {
                     bat """
-                    sonar-scanner ^
-                        -Dsonar.projectKey=SFDXProject ^
-                        -Dsonar.sources=force-app ^
-                        -Dsonar.host.url=http://localhost:9000 ^
-                        -Dsonar.login=%SONAR_AUTH_TOKEN%
+                        ${tool 'SonarScanner'}\\bin\\sonar-scanner ^
+                            -Dsonar.projectKey=SFDXProject ^
+                            -Dsonar.sources=force-app ^
+                            -Dsonar.host.url=http://localhost:9000
                     """
                 }
             }
