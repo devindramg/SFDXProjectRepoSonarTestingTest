@@ -15,13 +15,21 @@ pipeline {
                 withSonarQubeEnv('MySonarQubeServer') {
                     withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
                         bat """
-                            sonar-scanner ^
+                            C:\\sonar-scanner-7.2.0.5079-windows-x64\\bin\\sonar-scanner ^
                               -Dsonar.projectKey=MyProject ^
                               -Dsonar.sources=src ^
                               -Dsonar.host.url=http://localhost:9000 ^
                               -Dsonar.login=%SONAR_TOKEN%
                         """
                     }
+                }
+            }
+        }
+
+        stage("Quality Gate") {
+            steps {
+                timeout(time: 1, unit: 'HOURS') {
+                    waitForQualityGate abortPipeline: true
                 }
             }
         }
