@@ -16,7 +16,6 @@ pipeline {
                     bat """
                         echo %SFDX_AUTH_URL% > auth.txt
                         sf org login sfdx-url --sfdx-url-file auth.txt -a MyDevOrg --set-default
-                        del auth.txt
                     """
                 }
             }
@@ -26,7 +25,7 @@ pipeline {
             steps {
                 withSonarQubeEnv('MySonarQubeServer') {
                     bat """
-                        sonar-scanner ^
+                        C:\\sonar-scanner-7.2.0.5079-windows-x64\\bin\\sonar-scanner ^
                           -Dsonar.projectKey=SalesforceApp ^
                           -Dsonar.sources=force-app/main/default ^
                           -Dsonar.host.url=http://localhost:9000 ^
@@ -36,7 +35,7 @@ pipeline {
             }
         }
 
-        stage("Quality Gate") {
+        stage('Quality Gate') {
             steps {
                 timeout(time: 1, unit: 'HOURS') {
                     waitForQualityGate abortPipeline: true
