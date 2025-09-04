@@ -1,10 +1,6 @@
 pipeline {
     agent any
 
-    environment {
-        SFDX_AUTH_URL = credentials('sfdx-auth-url') // Store your auth URL in Jenkins credentials
-    }
-
     stages {
         stage('Checkout') {
             steps {
@@ -14,24 +10,14 @@ pipeline {
             }
         }
 
-        stage('SFDX Auth') {
+        stage('Authenticate Salesforce Org') {
             steps {
-                bat """
-                    echo %SFDX_AUTH_URL% > auth.txt
-                    sfdx force:auth:sfdxurl:store -f auth.txt -a DevHub
-                """
-            }
-        }
-
-        stage('Run Apex Tests') {
-            steps {
-                bat """
-                    sfdx force:apex:test:run --resultformat json --codecoverage --outputdir test-results --wait 10
-                """
-            }
-            post {
-                always {
-                    junit 'test-results/test-result-*.xml'
+                withCredentials([string(credentialsId: 'sfdx-auth-url', variable: 'SFDX_AUTH_URL')]) {
+                    bat """
+                        echo %SFDX_AUTH_URL% > auth.txt
+                        sf org login sfdx-url --sfdx-url-file auth.txt -a MyDevOrg --set-default
+                        del auth.txt
+                    """
                 }
             }
         }
@@ -39,15 +25,13 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('MySonarQubeServer') {
-                    withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-                        bat """
-                            sonar-scanner ^
-                              -Dsonar.host.url=http://localhost:9000 ^
-                              -Dsonar.login=%SONAR_TOKEN% ^
-                              -Dsonar.javascript.lcov.reportPaths=test-results/lcov.info ^
-                              -Dsonar.apex.coverage.reportPaths=test-results/test-result-codecoverage.json
-                        """
-                    }
+                    bat """
+                        sonar-scanner ^
+                          -Dsonar.projectKey=SalesforceApp ^
+                          -Dsonar.sources=force-app/main/default ^
+                          -Dsonar.host.url=http://localhost:9000 ^
+                          -Dsonar.login=YOUR_SONAR_TOKEN
+                    """
                 }
             }
         }
