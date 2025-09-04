@@ -27,7 +27,7 @@ pipeline {
                     C:\\sonar-scanner-7.2.0.5079-windows-x64\\bin\\sonar-scanner ^
                       -Dsonar.projectKey=SalesforceApp ^
                       -Dsonar.sources=force-app/main/default ^
-                      -Dsonar.host.url=http://192.168.1.100:9000 ^
+                      -Dsonar.host.url=http://localhost:9000 ^
                       -Dsonar.token=your_hardcoded_sonar_token_here
                 """
             }
@@ -35,13 +35,8 @@ pipeline {
 
         stage('Quality Gate') {
             steps {
-                timeout(time: 30, unit: 'MINUTES') {
-                    script {
-                        def qg = waitForQualityGate(abortPipeline: true)
-                        if (qg.status != 'OK') {
-                            error "Quality Gate failed with status: ${qg.status}"
-                        }
-                    }
+                timeout(time: 1, unit: 'HOURS') {
+                    waitForQualityGate abortPipeline: true
                 }
             }
         }
