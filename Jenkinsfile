@@ -23,15 +23,13 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('MySonarQubeServer') {
-                    bat """
-                        C:\\sonar-scanner-7.2.0.5079-windows-x64\\bin\\sonar-scanner ^
-                          -Dsonar.projectKey=SalesforceApp ^
-                          -Dsonar.sources=force-app/main/default ^
-                          -Dsonar.host.url=http://<SONAR_SERVER>:9000 ^
-                          -Dsonar.token=YOUR_SONAR_TOKEN
-                    """
-                }
+                bat """
+                    C:\\sonar-scanner-7.2.0.5079-windows-x64\\bin\\sonar-scanner ^
+                      -Dsonar.projectKey=SalesforceApp ^
+                      -Dsonar.sources=force-app/main/default ^
+                      -Dsonar.host.url=http://192.168.1.100:9000 ^
+                      -Dsonar.token=your_hardcoded_sonar_token_here
+                """
             }
         }
 
@@ -39,7 +37,7 @@ pipeline {
             steps {
                 timeout(time: 30, unit: 'MINUTES') {
                     script {
-                        def qg = waitForQualityGate()
+                        def qg = waitForQualityGate(abortPipeline: true)
                         if (qg.status != 'OK') {
                             error "Quality Gate failed with status: ${qg.status}"
                         }
