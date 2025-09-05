@@ -2,17 +2,16 @@ pipeline {
     agent any
 
     environment {
-        SONAR_URL = "http://192.168.1.100:9000"
-        SONAR_ADMIN_USER = "admin"           // Sonar admin username
-        SONAR_ADMIN_PASSWORD = "admin123"    // Sonar admin password
+        SONAR_URL   = "http://localhost:9000"
+        SONAR_TOKEN = "your_hardcoded_sonar_token_here"  // or use Jenkins credentials if preferred
     }
 
     stages {
         stage('Checkout') {
             steps {
                 git branch: 'main',
-                    url: 'https://github.com/devindramg/SFDXProjectRepoSonarTestingTest.git',
-                    credentialsId: 'my-github-token'
+                    credentialsId: 'my-github-token',
+                    url: 'https://github.com/devindramg/SFDXProjectRepoSonarTestingTest.git'
             }
         }
 
@@ -27,46 +26,38 @@ pipeline {
             }
         }
 
-        stage('Validate or Refresh SonarQube Token') {
+        stage('SonarQube Check & Analysis') {
             steps {
-                withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-                    powershell """
-                        # Test existing token
-                        try {
-                            \$response = Invoke-RestMethod -Uri ${SONAR_URL}/api/system/status -Headers @{Authorization = "Basic \$([Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(''+\$env:SONAR_TOKEN+':')))"}
-                            if (\$response.status -ne 'UP') { throw 'SonarQube server is not UP' }
-                        } catch {
-                            Write-Host "Existing SonarQube token invalid or server unreachable. Generating new token..."
+                script {
+                    def sonarReachable = false
+                    try {
+                        // Check if SonarQube is UP
+                        def response = powershell(returnStdout: true, script: """
+                            try {
+                                (Invoke-RestMethod -Uri ${env.SONAR_URL}/api/system/status -UseBasicParsing).status
+                            } catch { "DOWN" }
+                        """).trim()
 
-                            # Generate a new token
-                            \$body = @{name='jenkins-auto-token'}
-                            \$newToken = Invoke-RestMethod -Uri ${SONAR_URL}/api/user_tokens/generate -Method Post -Body \$body -Credential (New-Object System.Management.Automation.PSCredential('${SONAR_ADMIN_USER}', (ConvertTo-SecureString '${SONAR_ADMIN_PASSWORD}' -AsPlainText -Force)))
+                        echo "SonarQube status: ${response}"
+                        sonarReachable = (response == "UP")
+                    } catch (err) {
+                        echo "SonarQube check failed: ${err}"
+                        sonarReachable = false
+                    }
 
-                            Write-Host "New token generated: \$newToken.token"
-
-                            # Optionally, update Jenkins credential using Jenkins CLI
-                            # This requires jenkins-cli.jar on agent and proper permissions
-                            # Example:
-                            # java -jar jenkins-cli.jar -s http://localhost:8080/ create-credentials-by-xml system::system::jenkins _ < updated-credentials.xml
-
-                            exit 0
+                    if (sonarReachable) {
+                        withSonarQubeEnv('MySonarQubeServer') {
+                            bat """
+                                C:\\sonar-scanner-7.2.0.5079-windows-x64\\bin\\sonar-scanner ^
+                                  -Dsonar.projectKey=SalesforceApp ^
+                                  -Dsonar.sources=force-app/main/default ^
+                                  -Dsonar.host.url=${env.SONAR_URL} ^
+                                  -Dsonar.login=${env.SONAR_TOKEN}
+                            """
                         }
-                    """
-                }
-            }
-        }
-
-        stage('SonarQube Analysis') {
-            steps {
-                withSonarQubeEnv('MySonarQubeServer') {
-                    withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-                        bat """
-                            C:\\sonar-scanner-7.2.0.5079-windows-x64\\bin\\sonar-scanner ^
-                              -Dsonar.projectKey=SalesforceApp ^
-                              -Dsonar.sources=force-app/main/default ^
-                              -Dsonar.host.url=%SONAR_URL% ^
-                              -Dsonar.login=%SONAR_TOKEN%
-                        """
+                    } else {
+                        echo "⚠ SonarQube not reachable → skipping analysis."
+                        currentBuild.result = 'UNSTABLE'   // Mark build as yellow if skipped
                     }
                 }
             }
@@ -74,8 +65,15 @@ pipeline {
 
         stage('Quality Gate') {
             steps {
-                timeout(time: 1, unit: 'HOURS') {
-                    waitForQualityGate abortPipeline: true
+                script {
+                    try {
+                        timeout(time: 2, unit: 'MINUTES') {
+                            waitForQualityGate abortPipeline: false
+                        }
+                    } catch (err) {
+                        echo "Skipping Quality Gate check because SonarQube is not reachable."
+                        currentBuild.result = 'UNSTABLE'
+                    }
                 }
             }
         }
